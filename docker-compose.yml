@@ -1,0 +1,10 @@
+services:
+  passim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./output:/app/output
+      - ./input.json:/app/input.json
+    working_dir: /app
+
