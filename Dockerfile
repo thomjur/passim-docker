@@ -1,25 +1,38 @@
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
-# Aktualisieren der Paketlisten und installieren von Java und Python 3
+# Set environment variable to avoid interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install all dependencies in a single RUN command to reduce the number of layers
 RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y git openjdk-17-jdk python3.12 pip python3.12-venv && \
-    apt-get clean
+    apt-get install -y --no-install-recommends \
+        git \
+        openjdk-17-jdk \
+        python3.12 \
+        python3.12-venv \
+        pip && \
+    # Clean up the apt-cache to reduce image size
+    rm -rf /var/lib/apt/lists/*
 
-# Create folder for env
-RUN mkdir ~/environments
+# Define a clean path for the virtual environment
+ENV VENV_PATH=/opt/venv
 
-# Creating a Python env
-RUN python3.12 -m venv ~/environments/passim-env
-# Setuptools is needed, otherwise we get an distutils missing error
-RUN ~/environments/passim-env/bin/pip install
-git+https://github.com/dasmiq/passim.git setuptools
+# Create the virtual environment directly in the defined path
+RUN python3.12 -m venv ${VENV_PATH}
 
-# Add passim to .bashrc
-RUN echo 'export PATH=$PATH:~/environments/passim-env/lib/site-packages/passim' >> ~/.bashrc
+# Add the venv's 'bin' directory to the system PATH.
+# This ENV instruction applies to all subsequent commands and the running container.
+ENV PATH="${VENV_PATH}/bin:${PATH}"
 
-# Arbeitsverzeichnis setzen (optional)
+# Install the Python packages. 'pip' now refers to the pip inside the venv.
+# Upgrading pip and installing setuptools/wheel is often good practice.
+RUN pip install --upgrade pip setuptools wheel
+# ISSUE: as of 2025-08-19 pyspark 4.X was installed and caused trouble
+# see also: https://github.com/dasmiq/passim/pull/18/commits/71ef9906180623627976c8739d21880ee086a2d1
+RUN pip install pyspark==3.5.1
+RUN pip install git+https://github.com/dasmiq/passim.git
+
+# Set the working directory
 WORKDIR /app
 
-# Standardbefehl (optional, je nach Anwendungsfall)
-CMD ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["passim"]
